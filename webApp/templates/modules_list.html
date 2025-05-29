@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Модули</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <h1>Загруженные модули</h1>
+    <ul>
+        {% for name, module in modules.items() %}
+            <li>
+                <strong>{{ name }}</strong> (v{{ module.manifest.version }})
+                {% if module.config.greeting %}
+                    - {{ module.config.greeting }}
+                {% endif %}
+                <form method="post" action="/modules/{{ name  }}/console" style="display: inline;">
+                    <button type="submit">Управление</button>
+                </form>
+            </li>
+        {% endfor %}
+    </ul>
+</body>
+</html>

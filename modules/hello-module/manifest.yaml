@@ -1,0 +1,4 @@
+name: hello-world-module
+version: 0.1.0
+entry_point: src:HelloModule
+api: src.api:get_app

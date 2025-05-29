@@ -1,4 +1,4 @@
-# Dynamic Module Loader
+# Module Loader Platform
 
 Простая утилита для динамического подключения и управления модулями.
 

@@ -1,3 +1,3 @@
-#!/usr/bin/env bash
-source venv/bin/activate
+#!/bin/bash
+source venv/Scripts/activate
 python3 -m core.server

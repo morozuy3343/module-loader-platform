@@ -1,4 +1,17 @@
-name: hello-world-module
+name: hello-module
 version: 0.1.0
 entry_point: src:HelloModule
 api: src.api:get_app
+
+
+widget:
+  enabled: true
+  route: "/widget"
+  default:
+    x: 400
+    y: 0
+    w: 400
+    h: 300
+  min_size:
+    w: 400
+    h: 300

@@ -6,6 +6,7 @@ class ModuleLoader:
         self.modules_dir = modules_dir
         self.modules = {}
         self.subapps = {}
+        self.widget_info = {}
         
     def discover(self):
         for name in os.listdir(self.modules_dir):
@@ -26,4 +27,13 @@ class ModuleLoader:
                     api_mod = importlib.import_module(f"modules.{name}.{api_modpath}")
                     factory = getattr(api_mod, fn_name)
                     self.subapps[manifest['name']] = factory()
+
+                widget_meta = manifest.get('widget', {})
+                if widget_meta:
+                    if widget_meta.get('enabled'):
+                        self.widget_info[manifest['name']] = {
+                            **widget_meta['default'],
+                            "min_size": widget_meta['min_size'],
+                            "route": widget_meta['route']
+                        }
         return self.modules

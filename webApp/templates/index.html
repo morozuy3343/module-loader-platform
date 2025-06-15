@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Модули</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="/static/interact.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        #controls {
+            padding: 8px;
+            background: #f0f0f0;
+            border-bottom: 1px solid #ccc;
+        }
+        .widget {
+            position: absolute;
+            border: 1px solid #888;
+            background: #fff;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+        .widget-header {
+            background: #ddd;
+            padding: 4px;
+            cursor: move;
+            user-select: none;
+        }
+        .widget-content {
+            width: 100%;
+            height: calc(100% - 24px);
+            overflow: hidden;
+        }
+        .widget-resizer {
+            width: 12px;
+            height: 12px;
+            position: absolute;
+            right: 0;
+            bottom: 0;
+            cursor: se-resize;
+            background: rgba(0,0,0,0.2);
+            z-index: 100;
+        }
+        .widget .shield {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: transparent;
+            display: none;
+            z-index: 10;
+        }
+        .widget-header button {
+            float: right;
+            margin-left: 4px;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Загруженные модули</h1>
+    <ul>
+        {% for name, module in modules.items() %}
+            <li>
+                <strong>{{ name }}</strong> (v{{ module.manifest.version }})
+                {% if module.config.greeting %}
+                    - {{ module.config.greeting }}
+                {% endif %}
+                <form method="post" action="/modules/{{ name  }}/console" style="display: inline;">
+                    <button type="submit">Управление</button>
+                </form>
+            </li>
+        {% endfor %}
+    </ul>
+    <div id="controls">
+        <select id="module-select">
+            <option value="" disabled selected>Выбрать модуль…</option>
+        </select>
+        <button id="add-widget">Добавить виджет</button>
+    </div>
+    <div id="dashboard"></div>
+    
+    <script>
+    let widgets = {};
+    let widgetInfo = {};
+
+    async function init() {
+        const [mods, lay] = await Promise.all([
+            $.getJSON('/api/modules'),
+            $.getJSON('/api/layout').catch(()=> ({}))
+        ]);
+        const modules = mods;
+        widgetInfo = {{ widgets_meta|safe }};
+        widgets = lay || {};
+
+        const $sel = $('#module-select').empty()
+        .append('<option disabled selected>Выбрать модуль…</option>');
+        modules.forEach(name => {
+            if (!(name in widgets)) {
+                $sel.append(`<option value="${name}">${name}</option>`);
+            }
+        });
+
+        renderWidgets();
+    }
+
+    $('#add-widget').click(() => {
+        const name = $('#module-select').val();
+        if (!name) return;
+        $.ajax({
+            url: '/api/widget/add',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({name}),
+        }).done(data => {
+            if (data.status === 'Добавлено') {
+                widgets[name] = data.widget;
+                $(`#module-select option[value="${name}"]`).remove();
+                renderWidgets();
+            }
+        });
+    });
+
+    function renderWidgets() {
+        const container = $('#dashboard').empty();
+
+        Object.entries(widgets).forEach(([name, meta]) => {
+            const $el = $(`
+                <div class="widget" id="w-${name}" style="
+                    left:${meta.x}px; top:${meta.y}px;
+                    width:${meta.w}px; height:${meta.h}px">
+                    <div class="widget-header">
+                        <span class="title">${name}</span>
+                        <button class="btn-pin">📌</button>
+                        <button class="btn-close">✖</button>
+                    </div>
+                    <div class="widget-content">
+                        <div class="shield"></div>
+                        <iframe src="/modules/${name}${meta.route}" frameborder="0"
+                            style="width:100%;height:100%"></iframe>
+                    </div>
+                <div class="widget-resizer"></div>
+                </div>
+            `);
+            container.append($el);
+
+            const el = $el[0];
+            const $header = $el.find('.widget-header');
+            const $resizer = $el.find('.widget-resizer')[0];
+            const $shield = $el.find('.shield')[0];
+            const $pin = $el.find('.btn-pin');
+            const $close = $el.find('.btn-close');
+
+            meta.pinned = false;
+
+            const dragInst = interact(el).draggable({
+                listeners: {
+                    move(ev) {
+                        if (meta.pinned) return;
+                        meta.x += ev.dx; meta.y += ev.dy;
+                        el.style.left = meta.x + 'px';
+                        el.style.top  = meta.y + 'px';
+                    },
+                    end() { saveLayout(); }
+                }
+            });
+
+            const resizeInst = interact($resizer).draggable({
+                listeners: {
+                    move(ev) {
+                        if (meta.pinned) return;
+                        $shield.style.display = 'block';
+                        let newW = el.offsetWidth  + ev.dx;
+                        let newH = el.offsetHeight + ev.dy;
+                        const minW = widgetInfo[name].min_size.w;
+                        const minH = widgetInfo[name].min_size.h;
+                        meta.w = Math.max(newW, minW);
+                        meta.h = Math.max(newH, minH);
+                        el.style.width  = meta.w + 'px';
+                        el.style.height = meta.h + 'px';
+                    },
+                    end() {
+                        $shield.style.display = 'none';
+                        saveLayout();
+                    }
+                }
+            });
+
+            $pin.on('click', () => {
+                meta.pinned = !meta.pinned;
+                if (meta.pinned) {
+                    $pin.text('🔒');
+                    $resizer.style.display = 'none';
+                    el.style.cursor = 'default';
+                } else {
+                    $pin.text('📌');
+                    $resizer.style.display = 'block';
+                    el.style.cursor = '';
+                }
+            });
+
+            $close.on('click', () => {
+                delete widgets[name];
+                saveLayout();
+                $('#module-select').append(`<option value="${name}">${name}</option>`);
+                $el.remove();
+            });
+        });
+    }
+
+    function saveLayout() {
+        $.ajax({
+            url: '/api/layout',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(widgets)
+        });
+    }
+
+    init();
+    </script>
+</body>
+</html>

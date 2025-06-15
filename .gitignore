@@ -19,4 +19,4 @@ webApp/layout.json
 .env
 
 # Персональные модули
-modules/
+modules/ai-module

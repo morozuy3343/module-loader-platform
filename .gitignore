@@ -13,6 +13,10 @@ __pycache__/
 /data/
 /*.sqlite
 logs/
+webApp/layout.json
 
 # Env-файлы
 .env
+
+# Персональные модули
+modules/
